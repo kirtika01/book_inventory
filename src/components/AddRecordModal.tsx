@@ -1264,6 +1264,9 @@ export function AddRecordModal({
       delete insertData._stock_info;
 
       console.log("📦 Insert data before processing:", insertData);
+      // DEBUG: Log presence of returnable_policy and defectiveBooks
+      console.log("DEBUG: returnable_policy in insertData:", insertData.returnable_policy);
+      console.log("DEBUG: defectiveBooks in insertData:", insertData.defectiveBooks);
 
       // Handle special cases for different modules
       if (moduleType === "blazer") {
@@ -1526,6 +1529,9 @@ export function AddRecordModal({
           hint: moduleError.hint,
           fullError: moduleError,
         });
+        // DEBUG: Log full insertData and moduleType on error
+        console.error("DEBUG: Insert payload on error:", JSON.stringify(insertData, null, 2));
+        console.error("DEBUG: Module type on error:", moduleType);
 
         // Log the full error object for debugging
         console.error(
