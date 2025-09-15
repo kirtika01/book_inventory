@@ -905,7 +905,7 @@ export async function handleBookReturn({
   if (!kitName || !returnablePolicy || !returnedCount) return;
 
   if (returnablePolicy === "Extra Books" && gradeField) {
-    // Add returned books to the relevant grade's stock
+    // Add returned books to the relevant grade's stock (do NOT subtract, only add)
     const { data, error } = await supabase
       .from("book_inventory")
       .select(gradeField)
@@ -929,7 +929,7 @@ export async function handleBookReturn({
       console.error("Error updating inventory for Extra Books return:", updateError);
     }
   } else if (returnablePolicy === "Defective Books") {
-    // Add returned books to defectiveBooks column
+    // Only update defectiveBooks column in book_inventory, do NOT change grade-wise counts
     const { data, error } = await supabase
       .from("book_inventory")
       .select("defectiveBooks")

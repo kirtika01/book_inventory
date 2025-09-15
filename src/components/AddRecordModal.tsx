@@ -1813,15 +1813,49 @@ export function AddRecordModal({
               grades.forEach((grade) => {
                 const currentStock = Number(currentInventory[grade]) || 0;
                 const distributed = Number(insertData[grade]) || 0;
-                const newStock = currentStock - distributed;
+                let newStock;
 
-                if (distributed > 0) {
-                  gradeUpdates[grade] = newStock;
-                  console.log(
-                    `📚 ${grade}: ${currentStock} - ${distributed} = ${newStock}`
-                  );
+                // If defective books, do NOT change inventory, just update defectiveBooks column
+                if (insertData.returnable_policy === "Defective Books") {
+                  // Do not update grade-wise inventory
+                  // Instead, update defectiveBooks column below
+                  return;
+                }
+
+                // If returned books with "Extra Books" policy, ADD back to inventory
+                if (insertData.returnable_policy === "Extra Books") {
+                  newStock = currentStock + distributed;
+                  if (distributed > 0) {
+                    gradeUpdates[grade] = newStock;
+                    console.log(
+                      `📚 ${grade}: ${currentStock} + ${distributed} = ${newStock} (Extra Books returned)`
+                    );
+                  }
+                } else {
+                  // Default: subtract distributed from inventory
+                  newStock = currentStock - distributed;
+                  if (distributed > 0) {
+                    gradeUpdates[grade] = newStock;
+                    console.log(
+                      `📚 ${grade}: ${currentStock} - ${distributed} = ${newStock}`
+                    );
+                  }
                 }
               });
+
+              // If defective books, update defectiveBooks column only
+              if (insertData.returnable_policy === "Defective Books") {
+                const currentDefective = Number(currentInventory.defectiveBooks) || 0;
+                let totalDefective = currentDefective;
+                grades.forEach((grade) => {
+                  const defective = Number(insertData[grade]) || 0;
+                  totalDefective += defective;
+                });
+                gradeUpdates.defectiveBooks = totalDefective;
+                console.log(
+                  `🛑 Defective Books: ${currentDefective} + new = ${totalDefective}`
+                );
+              }
 
               // Update the book inventory
               console.log("🔄 Updating book inventory with new values...");
@@ -1959,7 +1993,18 @@ export function AddRecordModal({
     if (moduleType === "book_distribution" && field.name.startsWith("grade")) {
       const currentStock = formData._current_stock?.[field.name] || 0;
       const inputValue = Number(value) || 0;
-      const remainingStock = currentStock - inputValue;
+      let remainingStock;
+
+      // Show correct remaining for "Extra Books" (add to inventory)
+      if (formData.returnable_policy === "Extra Books") {
+        remainingStock = currentStock + inputValue;
+      } else if (formData.returnable_policy === "Defective Books") {
+        // For defective books, inventory does not change
+        remainingStock = currentStock;
+      } else {
+        // Default: subtract distributed
+        remainingStock = currentStock - inputValue;
+      }
 
       return (
         <div key={`${moduleType}-${field.name}`} className="space-y-2">
@@ -2023,8 +2068,8 @@ export function AddRecordModal({
           <div
             key={`${moduleType}-${field.name}`}
             className={`space-y-2 ${field.name === "current_balance"
-                ? "p-4 bg-green-50 border border-green-200 rounded-lg"
-                : ""
+              ? "p-4 bg-green-50 border border-green-200 rounded-lg"
+              : ""
               }`}
           >
             <Label
@@ -2204,14 +2249,14 @@ export function AddRecordModal({
                       handleFieldChange(field.name, e.target.value)
                     }
                     placeholder={`Enter new ${field.name === "item_name"
-                        ? "kit"
-                        : field.name === "game_details"
-                          ? "game"
-                          : field.name === "kit_name"
-                            ? "book kit"
-                            : field.name === "school_name"
-                              ? "school"
-                              : "coordinator"
+                      ? "kit"
+                      : field.name === "game_details"
+                        ? "game"
+                        : field.name === "kit_name"
+                          ? "book kit"
+                          : field.name === "school_name"
+                            ? "school"
+                            : "coordinator"
                       } name`}
                     required={field.required}
                   />

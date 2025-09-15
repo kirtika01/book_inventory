@@ -36,6 +36,7 @@ interface BookInventoryRecord {
   ordered_from_printer: number;
   received: number;
   total_used_till_now: number;
+  defectiveBooks: number;
   grade1: number;
   grade2: number;
   grade3: number;
@@ -64,6 +65,7 @@ export function BookInventoryTable({ onDataChange }: BookInventoryTableProps) {
   const [filteredRecords, setFilteredRecords] = useState<BookInventoryRecord[]>(
     []
   );
+  const [defectiveSummary, setDefectiveSummary] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [editingRecord, setEditingRecord] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -89,8 +91,51 @@ export function BookInventoryTable({ onDataChange }: BookInventoryTableProps) {
     }
   };
 
+  // Fetch defective books summary grade-wise from books_distribution
+  const fetchDefectiveSummary = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("books_distribution")
+        .select(
+          "grade1,grade2,grade3,grade4,grade5,grade6,grade7,grade7iot,grade8,grade8iot,grade9,grade9iot,grade10,grade10iot,returnable_policy"
+        )
+        .eq("returnable_policy", "Defective Books");
+
+      if (error) throw error;
+
+      // Aggregate grade-wise defective counts
+      const summary: Record<string, number> = {
+        grade1: 0,
+        grade2: 0,
+        grade3: 0,
+        grade4: 0,
+        grade5: 0,
+        grade6: 0,
+        grade7: 0,
+        grade7iot: 0,
+        grade8: 0,
+        grade8iot: 0,
+        grade9: 0,
+        grade9iot: 0,
+        grade10: 0,
+        grade10iot: 0,
+      };
+
+      (data || []).forEach((row: any) => {
+        Object.keys(summary).forEach((grade) => {
+          summary[grade] += Number(row[grade]) || 0;
+        });
+      });
+
+      setDefectiveSummary(summary);
+    } catch (error) {
+      console.error("Error fetching defective books summary:", error);
+    }
+  };
+
   useEffect(() => {
     fetchRecords();
+    fetchDefectiveSummary();
   }, []);
 
   // Filter records based on search term
@@ -275,16 +320,15 @@ export function BookInventoryTable({ onDataChange }: BookInventoryTableProps) {
               type={type}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
-              className={`h-9 w-full min-w-[80px] ${
-                type === "number" ? "pr-2" : ""
-              }`}
+              className={`h-9 w-full min-w-[80px] ${type === "number" ? "pr-2" : ""
+                }`}
               style={
                 type === "number"
                   ? {
-                      paddingRight: "8px",
-                      WebkitAppearance: "none",
-                      MozAppearance: "textfield",
-                    }
+                    paddingRight: "8px",
+                    WebkitAppearance: "none",
+                    MozAppearance: "textfield",
+                  }
                   : {}
               }
             />
@@ -384,6 +428,7 @@ export function BookInventoryTable({ onDataChange }: BookInventoryTableProps) {
                     <TableHead>Received</TableHead>
                     <TableHead>Used</TableHead>
                     <TableHead>Available</TableHead>
+                    <TableHead>Defective Books</TableHead>
                     <TableHead>Grade 1</TableHead>
                     <TableHead>Grade 2</TableHead>
                     <TableHead>Grade 3</TableHead>
@@ -453,6 +498,9 @@ export function BookInventoryTable({ onDataChange }: BookInventoryTableProps) {
                         </TableCell>
                         <TableCell className="font-medium text-green-600">
                           {available}
+                        </TableCell>
+                        <TableCell className="font-medium text-red-600">
+                          {record.defectiveBooks ?? 0}
                         </TableCell>
                         <TableCell>
                           {renderEditableField(
@@ -595,6 +643,29 @@ export function BookInventoryTable({ onDataChange }: BookInventoryTableProps) {
                     );
                   })}
                 </TableBody>
+                {/* Defective Books Summary Row */}
+                <tfoot>
+                  <TableRow className="bg-red-50 font-semibold">
+                    <TableCell colSpan={7} className="text-right text-red-700">
+                      Defective Books (Grade-wise)
+                    </TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade1 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade2 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade3 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade4 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade5 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade6 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade7 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade7iot ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade8 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade8iot ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade9 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade9iot ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade10 ?? 0}</TableCell>
+                    <TableCell className="text-red-700">{defectiveSummary.grade10iot ?? 0}</TableCell>
+                    <TableCell colSpan={3}></TableCell>
+                  </TableRow>
+                </tfoot>
               </Table>
             </div>
           </div>
