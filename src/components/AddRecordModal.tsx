@@ -1036,6 +1036,46 @@ export function AddRecordModal({
     console.log("🔍 item_name in formData:", formData.item_name);
   }, [formData]);
 
+  // Kits: Opening Balance state for modal
+  const [kitOpeningBalanceState, setKitOpeningBalanceState] = React.useState<{
+    loading: boolean;
+    isFirst: boolean;
+    prevClosing: number | null;
+  }>({ loading: false, isFirst: true, prevClosing: null });
+
+  // Fetch previous closing balance when item_name changes for kits
+  useEffect(() => {
+    if (open && moduleType === "kits" && formData.item_name) {
+      setKitOpeningBalanceState((prev) => ({ ...prev, loading: true }));
+      (async () => {
+        const { data, error } = await supabase
+          .from("kits_inventory")
+          .select("*")
+          .eq("item_name", formData.item_name)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (error || !data) {
+          setKitOpeningBalanceState({ loading: false, isFirst: true, prevClosing: null });
+        } else {
+          setKitOpeningBalanceState({
+            loading: false,
+            isFirst: false,
+            prevClosing: data.closing_balance ?? (data.opening_balance + data.addins - data.takeouts),
+          });
+          // Auto-fill opening_balance for subsequent records
+          setFormData((prev) => ({
+            ...prev,
+            opening_balance: data.closing_balance ?? (data.opening_balance + data.addins - data.takeouts),
+          }));
+        }
+      })();
+    } else if (open && moduleType === "kits" && !formData.item_name) {
+      setKitOpeningBalanceState({ loading: false, isFirst: true, prevClosing: null });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, moduleType, formData.item_name]);
+
   // Set default module type when modal opens
   useEffect(() => {
     if (open && defaultModuleType && !moduleType) {
@@ -1046,6 +1086,7 @@ export function AddRecordModal({
           addins: 0,
           takeouts: 0,
         });
+        setKitOpeningBalanceState({ loading: false, isFirst: true, prevClosing: null });
         console.log(
           "🔍 AddRecordModal - Kits form initialized with default values (addins: 0, takeouts: 0)"
         );
@@ -1059,7 +1100,7 @@ export function AddRecordModal({
           "🔍 AddRecordModal - previousMonthCarryover prop received:",
           previousMonthCarryover
         );
-
+  
         setFormData({
           current_balance: currentBalance ?? 0,
           expenses: 0,
@@ -1985,7 +2026,7 @@ export function AddRecordModal({
   const renderField = (field: any) => {
     const value = formData[field.name] || "";
     // Make all fields editable by default, except read-only fields
-    const isDisabled = field.readOnly || false;
+    let isDisabled = field.readOnly || false;
     const showAutoCarryNote =
       shouldAutoCarry(field.name) && autoCarryValues[field.name] !== undefined;
 
@@ -2064,6 +2105,69 @@ export function AddRecordModal({
     switch (field.type) {
       case "text":
       case "number":
+        // Kits: Opening Balance field logic
+        if (moduleType === "kits" && field.name === "opening_balance") {
+          if (kitOpeningBalanceState.loading) {
+            return (
+              <div key={`${moduleType}-${field.name}`} className="space-y-2">
+                <Label htmlFor={field.name}>
+                  {field.label}{" "}
+                  {field.required && <span className="text-destructive">*</span>}
+                </Label>
+                <div className="text-muted-foreground">Checking previous records...</div>
+              </div>
+            );
+          }
+          if (!kitOpeningBalanceState.isFirst) {
+            isDisabled = true;
+          }
+          return (
+            <div
+              key={`${moduleType}-${field.name}`}
+              className={`space-y-2`}
+            >
+              <Label htmlFor={field.name}>
+                {field.label}{" "}
+                {field.required && <span className="text-destructive">*</span>}
+              </Label>
+              <Input
+                id={field.name}
+                type={field.type}
+                value={displayValue}
+                onChange={(e) => {
+                  if (isDisabled) return;
+                  const raw = e.target.value;
+                  if (field.type === "number") {
+                    if (raw === "" || raw === "-") {
+                      handleFieldChange(field.name, raw);
+                    } else {
+                      handleFieldChange(field.name, Number(raw));
+                    }
+                  } else {
+                    handleFieldChange(field.name, raw);
+                  }
+                }}
+                required={field.required}
+                disabled={isDisabled}
+                placeholder={
+                  kitOpeningBalanceState.isFirst
+                    ? "Enter opening balance for this item"
+                    : kitOpeningBalanceState.prevClosing !== null
+                      ? `Auto-filled from last closing balance: ${kitOpeningBalanceState.prevClosing}`
+                      : field.placeholder
+                }
+                className={field.className || ""}
+                readOnly={isDisabled}
+              />
+              {!kitOpeningBalanceState.isFirst && (
+                <p className="text-xs text-muted-foreground">
+                  Opening Balance auto-filled from previous closing balance. To change, edit the last record.
+                </p>
+              )}
+            </div>
+          );
+        }
+
         return (
           <div
             key={`${moduleType}-${field.name}`}
